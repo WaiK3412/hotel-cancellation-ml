@@ -1,0 +1,15 @@
+.venv/
+work/
+__pycache__/
+.ipynb_checkpoints/
+*.pyc
+.cache/
+.DS_Store
+data/raw/*
+!data/raw/SOURCES.json
+!data/raw/.gitkeep
+models/*.joblib
+!models/recommended.joblib
+# Course material (brief, rubric captures, lecture decks) stays on each member's disk only:
+# the brief must not be posted online and the decks are not ours to publish.
+lecturer/
