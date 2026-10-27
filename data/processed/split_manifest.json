@@ -1,0 +1,43 @@
+{
+  "seed": 42,
+  "method": "StratifiedGroupKFold(5), first fold held out",
+  "rows": 87396,
+  "train_rows": 69877,
+  "test_rows": 17519,
+  "train_positive_fraction": 0.27592770153269314,
+  "test_positive_fraction": 0.2707917118556995,
+  "booking_groups": 78860,
+  "rows_in_shared_groups": 14184,
+  "groups_with_both_labels": 1068,
+  "group_key_columns": [
+    "hotel",
+    "lead_time",
+    "arrival_date_month",
+    "arrival_date_week_number",
+    "arrival_date_day_of_month",
+    "stays_in_weekend_nights",
+    "stays_in_week_nights",
+    "adults",
+    "children",
+    "babies",
+    "meal",
+    "market_segment",
+    "distribution_channel",
+    "is_repeated_guest",
+    "previous_cancellations",
+    "previous_bookings_not_canceled",
+    "reserved_room_type",
+    "agent",
+    "company",
+    "customer_type"
+  ],
+  "outcome_fields_never_used": [
+    "reservation_status",
+    "reservation_status_date",
+    "assigned_room_type",
+    "booking_changes",
+    "days_in_waiting_list"
+  ],
+  "source_sha256": "7c2ae42a7353905ea136e5c2287f17c92c5435826598bfbb8491c6f0c7b1fc06",
+  "policy": "label-free cleaning; group-aware split before any fitting; holdout first evaluated in Phase 4"
+}
