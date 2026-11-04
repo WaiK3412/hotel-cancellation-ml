@@ -117,6 +117,17 @@ def fit_and_score(name, estimator, X, y, Xtest, ytest):
     return estimator, probability, fit_seconds, predict_seconds
 
 
+def perturb(Xtest, Xtrain, level, rng):
+    """Copy of the test rows with Gaussian noise of `level` x training SD on measured quantities."""
+    noisy = Xtest.copy()
+    for column in NOISE_FEATURES:
+        sigma = level * Xtrain[column].std()
+        noisy[column] = (noisy[column] + rng.normal(0, sigma, len(noisy))).clip(lower=0)
+        if column != "adr":
+            noisy[column] = noisy[column].round()
+    return noisy
+
+
 SHORT_NAMES = {"Logistic Regression": "LR", "Random Forest": "RF", "Hist Gradient Boosting": "HGB"}
 
 
@@ -319,10 +330,65 @@ def final_evaluation(models, voting, stacking, cv_table, chosen, X, y):
     confusion_figure(matrices, ("Logistic Regression", chosen))
     curves_figure(ytest, {name: predictions["p_" + slug(name)].to_numpy() for name in shown}, shown)
 
+    tuning_check(X, y, Xtest, ytest, predictions)
+    robustness(fitted, X, Xtest, ytest)
+    seed_variance(models, voting, X, y, Xtest, ytest)
     errors = error_analysis(chosen, predictions["p_" + slug(chosen)].to_numpy(), Xtest, ytest)
     fairness_table = fairness(chosen, predictions["p_" + slug(chosen)].to_numpy(), Xtest, ytest)
     save_recommended(fitted[chosen], chosen, X, Xtest)
     return metrics, efficiency, errors, fairness_table
+
+
+def tuning_check(X, y, Xtest, ytest, predictions):
+    """Default vs tuned on the untouched test set: the unbiased check on tuning (paired bootstrap)."""
+    probabilities, rows = {}, []
+    for name, pipeline in default_pipelines().items():
+        probabilities[f"{name} (default)"] = clone(pipeline).fit(X, y).predict_proba(Xtest)[:, 1]
+        probabilities[f"{name} (tuned)"] = predictions["p_" + slug(name)].to_numpy()
+    for name in default_pipelines():
+        pair = {k: v for k, v in probabilities.items() if k.startswith(name)}
+        comparison = paired_ap_comparisons(ytest.to_numpy(), pair, f"{name} (default)", repeats=1000)
+        rows.append(comparison.assign(model=name))
+        log("Phase 4", "tuning check", f"{name}: tuned - default test AP {comparison['observed'].iloc[0]:+.4f}")
+    table(pd.concat(rows, ignore_index=True), "phase4_tuning_test_check.csv")
+    table(pd.DataFrame([{"model": k, **performance(ytest, v)} for k, v in probabilities.items()]),
+          "phase4_default_vs_tuned_test.csv")
+
+
+def robustness(fitted, X, Xtest, ytest):
+    """Test AP when measured quantities carry increasing Gaussian noise (5% to 50% of their SD)."""
+    rows = []
+    for level in [0.0] + NOISE_LEVELS:
+        noisy = Xtest if level == 0 else perturb(Xtest, X, level, np.random.default_rng(SEED))
+        for name in ["Logistic Regression", "Random Forest", "Hist Gradient Boosting", "Voting"]:
+            rows.append({"model": name, "noise_fraction_of_sd": level,
+                         "pr_auc": average_precision_score(ytest, fitted[name].predict_proba(noisy)[:, 1])})
+    frame = table(pd.DataFrame(rows), "phase4_robustness.csv")
+    plt.figure(figsize=(7, 4.5))
+    for name, group in frame.groupby("model", sort=False):
+        plt.plot(group.noise_fraction_of_sd, group.pr_auc, marker="o", label=name, color=MODEL_COLOURS[name])
+    plt.legend(fontsize=8)
+    figure("fig_H_06_noise_robustness.png", "Test AP as noise is added to lead time, ADR and nights",
+           "Noise standard deviation (fraction of the field's training SD)", "Average precision")
+    log("Phase 4", "robustness", "Noise levels " + ", ".join(map(str, NOISE_LEVELS)) + " evaluated.")
+
+
+def seed_variance(models, voting, X, y, Xtest, ytest):
+    """How much test AP moves when only the random seed changes (same data, same parameters)."""
+    rows = []
+    for seed in SEEDS:
+        for name in ["Random Forest", "Hist Gradient Boosting", "Voting"]:
+            estimator = clone(voting if name == "Voting" else models[name])
+            estimator.set_params(**{key: seed for key in estimator.get_params() if key.endswith("random_state")})
+            probability = estimator.fit(X, y).predict_proba(Xtest)[:, 1]
+            rows.append({"model": name, "seed": seed, "pr_auc": average_precision_score(ytest, probability),
+                         "f1": f1_score(ytest, probability > THRESHOLD)})
+        log("Phase 4", "seed variance", f"seed {seed} done")
+    frame = table(pd.DataFrame(rows), "phase4_seed_variance.csv")
+    table(frame.groupby("model").agg(pr_auc_mean=("pr_auc", "mean"), pr_auc_sd=("pr_auc", "std"),
+                                     pr_auc_min=("pr_auc", "min"), pr_auc_max=("pr_auc", "max"),
+                                     f1_mean=("f1", "mean"), f1_sd=("f1", "std")).reset_index(),
+          "phase4_seed_variance_summary.csv")
 
 
 def save_recommended(estimator, chosen, X, Xtest):
