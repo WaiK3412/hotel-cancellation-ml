@@ -1,16 +1,23 @@
-"""Phase 1: exploratory analysis of the training rows.
+"""Phase 1: exploratory analysis of the training rows and the supervised-vs-clustering comparison.
 
 EDA looks at every source field, including the leakage candidates, because spotting suspicious
 patterns is part of the investigation. Test rows are never loaded here.
 """
+from time import perf_counter
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from scipy.stats import chi2_contingency
+from sklearn.cluster import KMeans
+from sklearn.impute import SimpleImputer
+from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score, silhouette_score
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
-from src.common import ROOT, figure, log, save_figure, table
+from src.common import ROOT, SEED, figure, log, save_figure, table
 from src.data import CATEGORICAL, OUTCOME_FIELDS, TARGET, booking_groups, load_partition, missing_mask
 
 MEANINGS = {
@@ -306,3 +313,59 @@ def eda():
     cancellation_rates(X, y)
     log("Phase 1", "EDA", f"Training rows only: {len(X)}. Tables in results/phase1_*.csv, figures fig_C_*.")
     return dictionary_frame
+
+
+def paradigms():
+    """Part B experiment: supervised logistic regression versus label-free K-Means."""
+    from src.metrics import cv_scores, fold_frame, summarize
+    from src.preprocess import build_pipeline, reference_models
+
+    X, y = load_partition("train")
+    start = perf_counter()
+    scores = cv_scores(build_pipeline(reference_models()["Logistic Regression"]), X, y)
+    supervised_seconds = perf_counter() - start
+    supervised = summarize(scores)
+    table(fold_frame(scores, "logistic regression"), "phase1_supervised_folds.csv")
+    table(pd.DataFrame([supervised]), "phase1_supervised_cv.csv")
+
+    # K-Means sees a fixed 4,000-row training sample and numeric fields only; labels are used
+    # only after clustering, to measure how well clusters line up with cancellations.
+    _, sample_rows = train_test_split(np.arange(len(X)), test_size=4000, stratify=y, random_state=SEED)
+    numeric = ["lead_time", "adr", "stays_in_weekend_nights", "stays_in_week_nights", "adults", "children",
+               "babies", "previous_cancellations", "total_of_special_requests"]
+    sample, labels = X.iloc[sample_rows][numeric], y.iloc[sample_rows]
+    trials, fitted = [], {}
+    start = perf_counter()
+    for k in range(2, 7):
+        pipeline = Pipeline([("impute", SimpleImputer(strategy="median")), ("scale", StandardScaler()),
+                             ("cluster", KMeans(n_clusters=k, n_init=10, random_state=SEED))]).fit(sample)
+        clusters = pipeline.named_steps["cluster"].labels_
+        silhouette = silhouette_score(pipeline[:-1].transform(sample), clusters, sample_size=1500, random_state=SEED)
+        trials.append({"k": k, "inertia": pipeline.named_steps["cluster"].inertia_, "silhouette": silhouette})
+        fitted[k] = clusters
+    clustering_seconds = perf_counter() - start
+    trial_frame = table(pd.DataFrame(trials), "phase1_clustering_k.csv")
+    k = int(trial_frame.loc[trial_frame.silhouette.idxmax(), "k"])  # chosen without labels
+    clusters = fitted[k]
+    table(pd.crosstab(clusters, labels).reset_index(names="cluster"), "phase1_cluster_vs_label.csv")
+    profiles = sample.assign(cluster=clusters, cancelled=labels.to_numpy()).groupby("cluster").mean().reset_index()
+    profiles["bookings"] = pd.Series(clusters).value_counts().reindex(profiles.cluster).to_numpy()
+    table(profiles, "phase1_cluster_profiles.csv")
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+    axes[0].plot(trial_frame.k, trial_frame.inertia, marker="o")
+    axes[0].set(title="Elbow", xlabel="Clusters k", ylabel="Inertia (within-cluster squared distance)")
+    axes[1].plot(trial_frame.k, trial_frame.silhouette, marker="o")
+    axes[1].set(title="Silhouette (chooses k without labels)", xlabel="Clusters k", ylabel="Silhouette")
+    save_figure(fig, "fig_B_01_clustering_selection.png", "K-Means on a 4,000-row training sample")
+    comparison = table(pd.DataFrame([
+        {"approach": "Logistic regression (supervised)", "uses_labels": "yes, to fit", "rows": len(X), "cv_folds": 5,
+         "cv_pr_auc": supervised["pr_auc_mean"], "cv_f1": supervised["f1_mean"], "ari": np.nan, "nmi": np.nan,
+         "k": np.nan, "wall_seconds": supervised_seconds},
+        {"approach": "K-Means (unsupervised)", "uses_labels": "no; only to score agreement afterwards",
+         "rows": len(sample), "cv_folds": np.nan, "cv_pr_auc": np.nan, "cv_f1": np.nan,
+         "ari": adjusted_rand_score(labels, clusters), "nmi": normalized_mutual_info_score(labels, clusters),
+         "k": k, "wall_seconds": clustering_seconds},
+    ]), "phase1_paradigm_comparison.csv")
+    log("Phase 1", "paradigms", f"LR CV AP {supervised['pr_auc_mean']:.3f}; K-Means k={k}, "
+        f"ARI {comparison.ari.iloc[1]:.3f}, NMI {comparison.nmi.iloc[1]:.3f}.")
+    return comparison
