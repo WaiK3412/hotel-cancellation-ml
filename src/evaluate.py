@@ -331,6 +331,7 @@ def final_evaluation(models, voting, stacking, cv_table, chosen, X, y):
     curves_figure(ytest, {name: predictions["p_" + slug(name)].to_numpy() for name in shown}, shown)
 
     tuning_check(X, y, Xtest, ytest, predictions)
+    importance(fitted, chosen, Xtest, ytest)
     robustness(fitted, X, Xtest, ytest)
     seed_variance(models, voting, X, y, Xtest, ytest)
     errors = error_analysis(chosen, predictions["p_" + slug(chosen)].to_numpy(), Xtest, ytest)
@@ -353,6 +354,42 @@ def tuning_check(X, y, Xtest, ytest, predictions):
     table(pd.concat(rows, ignore_index=True), "phase4_tuning_test_check.csv")
     table(pd.DataFrame([{"model": k, **performance(ytest, v)} for k, v in probabilities.items()]),
           "phase4_default_vs_tuned_test.csv")
+
+
+def importance(fitted, chosen, Xtest, ytest):
+    """Permutation importance on a fixed 2,000-row stratified sample of the test set."""
+    _, rows = train_test_split(np.arange(len(Xtest)), test_size=2000, stratify=ytest, random_state=SEED)
+    frames = []
+    for name in ["Logistic Regression", "Random Forest", "Hist Gradient Boosting", "Voting"]:
+        result = permutation_importance(fitted[name], Xtest.iloc[rows], ytest.iloc[rows], scoring="average_precision",
+                                        n_repeats=5, random_state=SEED, n_jobs=N_JOBS)
+        frames.append(pd.DataFrame({"model": name, "feature": Xtest.columns, "importance_mean": result.importances_mean,
+                                    "importance_std": result.importances_std}))
+    frame = table(pd.concat(frames, ignore_index=True), "phase4_permutation_importance.csv")
+    top = frame[frame.model == chosen].sort_values("importance_mean").tail(12)
+    plt.figure(figsize=(8, 5))
+    plt.barh(top.feature, top.importance_mean, xerr=top.importance_std, color=MODEL_COLOURS.get(chosen))
+    figure("fig_H_04_importance.png", f"{chosen}: permutation importance (2,000 test rows, 5 repeats)",
+           "Drop in average precision when the field is shuffled", "Field")
+    coefficients(fitted["Logistic Regression"])
+
+
+def coefficients(pipeline):
+    names = pipeline.named_steps["prepare"].get_feature_names_out()
+    names = names[pipeline.named_steps["variance"].get_support()]
+    if pipeline.named_steps["select"] != "passthrough":
+        names = names[pipeline.named_steps["select"].get_support()]
+    values = pipeline.named_steps["model"].coef_.ravel()
+    frame = table(pd.DataFrame({"transformed_feature": names, "coefficient": values,
+                                "absolute_coefficient": np.abs(values)}).sort_values("absolute_coefficient",
+                                                                                     ascending=False),
+                  "phase4_linear_coefficients.csv")
+    top = frame.head(15).sort_values("coefficient")
+    plt.figure(figsize=(8, 5.5))
+    plt.barh(top.transformed_feature, top.coefficient,
+             color=np.where(top.coefficient > 0, "#D55E00", "#0072B2"))
+    figure("fig_H_05_linear_coefficients.png", "Logistic regression: largest coefficients (scaled inputs)",
+           "Change in log-odds of cancellation per unit", "Encoded field")
 
 
 def robustness(fitted, X, Xtest, ytest):
@@ -389,6 +426,114 @@ def seed_variance(models, voting, X, y, Xtest, ytest):
                                      pr_auc_min=("pr_auc", "min"), pr_auc_max=("pr_auc", "max"),
                                      f1_mean=("f1", "mean"), f1_sd=("f1", "std")).reset_index(),
           "phase4_seed_variance_summary.csv")
+
+
+def alternative_pairs():
+    """Soft voting of every pair of tuned models on the shared training folds; the test set is not loaded.
+
+    Added after the final evaluation to test the reason for leaving logistic regression out of the
+    ensemble. It reports evidence only: the recommendation was fixed before the test set was opened.
+    """
+    X, y = load_partition("train")
+    models = tuned_pipelines()
+    selected = set(load_json("results/phase4_ensemble_selection.json")["pair"])
+    rows, fold_tables = [], []
+    for pair in combinations(models, 2):
+        voting, _ = ensembles(pair, models)
+        label = " + ".join(pair)
+        scores = cv_scores(voting, X, y)
+        summary = summarize(scores)
+        rows.append({"pair": label, "selected_pair": set(pair) == selected, "pr_auc_mean": summary["pr_auc_mean"],
+                     "pr_auc_std": summary["pr_auc_std"], "train_pr_auc_mean": summary["train_pr_auc_mean"],
+                     "fit_seconds": summary["fit_seconds"]})
+        fold_tables.append(fold_frame(scores, label))
+        log("D2-7", "alternative pair", f"Voting of {label}: CV AP {summary['pr_auc_mean']:.3f}")
+    summary = table(pd.DataFrame(rows), "d2_7_pair_cv.csv")
+    fold_results = table(pd.concat(fold_tables, ignore_index=True), "d2_7_pair_cv_folds.csv")
+    reference = summary.loc[summary.selected_pair, "pair"].iloc[0]
+    comparisons = table(paired_comparisons(fold_results, reference), "d2_7_pair_comparisons.csv")
+    return summary, comparisons
+
+
+def booking_time_features():
+    """D14: calendar features and target encoding for agent/company, on the training folds only.
+
+    Run after the final evaluation, in answer to a reviewer's point that only four engineered fields
+    were tried. The test set is not loaded, and the recommended model is not changed: choosing new
+    features now, after the test set has been used, would make the test score optimistic.
+    """
+    from src.preprocess import extended_pipeline
+
+    X, y = load_partition("train")
+    X = X.join(load_audit_columns("train", ["arrival_date_year"]))  # needed only to find the weekday
+    best = load_json("results/phase3_best_params.json")
+    families = {name: model for name, model in default_pipelines().items() if name != "Logistic Regression"}
+    options = {"reference": {}, "calendar features": {"calendar": True},
+               "target-encoded agent and company": {"target_encode": True},
+               "both": {"calendar": True, "target_encode": True}}
+    rows, comparisons = [], []
+    for name, default in families.items():
+        model = default.named_steps["model"]
+        fold_tables = []
+        for label, option in options.items():
+            pipeline = extended_pipeline(model, **option).set_params(**best[name])
+            scores = cv_scores(pipeline, X, y)
+            summary = summarize(scores)
+            rows.append({"model": name, "configuration": label, "pr_auc_mean": summary["pr_auc_mean"],
+                         "pr_auc_std": summary["pr_auc_std"], "roc_auc_mean": summary["roc_auc_mean"],
+                         "fit_seconds": summary["fit_seconds"]})
+            fold_tables.append(fold_frame(scores, label))
+            log("D2-8", "booking-time features", f"{name}, {label}: CV AP {summary['pr_auc_mean']:.4f}")
+        folds_frame = pd.concat(fold_tables, ignore_index=True).assign(model=name)
+        comparisons.append(paired_comparisons(folds_frame, "reference").assign(model=name))
+        table(folds_frame, f"d2_8_booking_time_folds_{name.split()[0].lower()}.csv")
+    from src.inference import holm
+    comparisons = holm(pd.concat(comparisons, ignore_index=True).drop(columns="p_holm"))  # Holm over all six
+    return table(pd.DataFrame(rows), "d2_8_booking_time_cv.csv"), table(comparisons, "d2_8_booking_time_comparisons.csv")
+
+
+def precision_at_capacity(shares=(0.05, 0.10, 0.20)):
+    """Precision and recall when staff can review only the riskiest share of test bookings.
+
+    This is the business success measure stated in Section 1.1. It reads the saved test predictions;
+    nothing is refitted and no modelling choice depends on it.
+    """
+    predictions = pd.read_csv(ROOT / "results/phase4_test_predictions.csv")
+    y = predictions.is_canceled.to_numpy()
+    rows = []
+    for name in ["Logistic Regression", "Random Forest", "Hist Gradient Boosting", "Voting", "Stacking"]:
+        order = np.argsort(-predictions["p_" + slug(name)].to_numpy(), kind="stable")  # riskiest first
+        for share in shares:
+            reviewed = order[:int(round(share * len(y)))]
+            rows.append({"model": name, "review_share": share, "bookings_reviewed": len(reviewed),
+                         "precision": y[reviewed].mean(), "recall": y[reviewed].sum() / y.sum()})
+    return table(pd.DataFrame(rows), "d2_9_precision_at_capacity.csv")
+
+
+def base_rates():
+    """Cancellation rate and AP lift (AP divided by that rate) for each evaluation population.
+
+    AP's floor is the cancellation rate, so AP values from populations with different rates are
+    only comparable as lifts. Reads saved predictions and the training partition; nothing is refitted.
+    """
+    from src.data import load_partition
+
+    test = pd.read_csv(ROOT / "results/phase4_test_predictions.csv")
+    later = pd.read_csv(ROOT / "results/d2_5_temporal_predictions.csv")
+    later = later[later.model == "Voting (tuned)"]
+    transfer = pd.read_csv(ROOT / "results/d2_5_hotel_transfer.csv").set_index("validation_hotel")
+    X, y = load_partition("train")
+    rows = [{"population": "random test split", "rows": len(test), "cancel_rate": test.is_canceled.mean(),
+             "voting_ap": average_precision_score(test.is_canceled, test.p_voting)},
+            {"population": "later period (from 2017)", "rows": len(later), "cancel_rate": later.is_canceled.mean(),
+             "voting_ap": average_precision_score(later.is_canceled, later.probability)}]
+    for hotel in ["Resort Hotel", "City Hotel"]:
+        rate = y[X.hotel == hotel].mean()
+        rows.append({"population": f"{hotel} (trained on the other hotel)", "rows": int((X.hotel == hotel).sum()),
+                     "cancel_rate": rate, "voting_ap": transfer.loc[hotel, "pr_auc"]})
+    frame = pd.DataFrame(rows)
+    frame["lift"] = frame.voting_ap / frame.cancel_rate
+    return table(frame, "d2_10_base_rates.csv")
 
 
 def save_recommended(estimator, chosen, X, Xtest):
