@@ -85,7 +85,7 @@ def calibration_and_policy():
     policy["default_cost_ratio"] = 5
     table(pd.DataFrame(grid), "d2_5_threshold_search.csv")
     save_json(policy, "results/d2_5_policy.json")  # frozen before any test prediction is read
-    log("D2-5", "policy frozen", f"{name}: {method} calibration; 5:1 cutoff {thresholds['5']:.2f}")
+    log("Decision check", "policy frozen", f"{name}: {method} calibration; 5:1 cutoff {thresholds['5']:.2f}")
 
     test = pd.read_csv(ROOT / "results/phase4_test_predictions.csv")
     scopes = {"training_policy_validation": (target[validation], raw[validation]),
@@ -163,7 +163,7 @@ def temporal_check():
         predictions[name] = p
         rows.append({"model": name, "training_rows": int(earlier.sum()), "validation_rows": int(later.sum()),
                      **probability_metrics(y.loc[later], p)})
-        log("D2-5", "temporal", f"{name}: later-period AP {rows[-1]['pr_auc']:.3f}")
+        log("Decision check", "temporal", f"{name}: later-period AP {rows[-1]['pr_auc']:.3f}")
     temporal = table(pd.DataFrame(rows), "d2_5_temporal_metrics.csv")
     table(pd.DataFrame([{"model": name, **row} for name, p in predictions.items()
                         for row in prediction_intervals(y.loc[later], p, repeats=300)]), "d2_5_temporal_intervals.csv")

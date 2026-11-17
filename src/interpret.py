@@ -183,5 +183,5 @@ def ensemble_interpretation():
                "scope": "frozen models and predictions; intervals describe score uncertainty, not selection"},
               "results/d2_6_protocol.json")
     results = diversity_analysis(), holdout_uncertainty(), week_bootstrap(), partial_dependence(), population_check()
-    log("D2-6", "interpretation", "Diversity, test uncertainty, week bootstrap, PDP and population checks saved.")
+    log("Interpretation", "interpretation", "Diversity, test uncertainty, week bootstrap, PDP and population checks saved.")
     return results

@@ -56,7 +56,7 @@ def nested_search():
                 rows.append({"model": name, "option": option, "fold": fold,
                              "pr_auc": average_precision_score(y.iloc[valid], estimator.predict_proba(X.iloc[valid])[:, 1]),
                              "default_selected": search.best_index_ == len(grid) - 1})
-            log("D2-3", "outer fold", f"{name} fold {fold}: nested {rows[-2]['pr_auc']:.3f}, default {rows[-1]['pr_auc']:.3f}")
+            log("Nested search", "outer fold", f"{name} fold {fold}: nested {rows[-2]['pr_auc']:.3f}, default {rows[-1]['pr_auc']:.3f}")
         table(pd.DataFrame(rows), "d2_3_nested_folds.csv")
     folds_frame = pd.DataFrame(rows)
     table(pd.DataFrame(trials), "d2_3_search_trials.csv")
@@ -86,7 +86,7 @@ def learning_curves(X, y, outer):
                 rows.append({"model": name, "fold": fold, "fraction": fraction, "training_rows": len(sample),
                              "train_ap": average_precision_score(y.iloc[sample], estimator.predict_proba(X.iloc[sample])[:, 1]),
                              "validation_ap": average_precision_score(y.iloc[valid], estimator.predict_proba(X.iloc[valid])[:, 1])})
-        log("D2-3", "learning curve", name)
+        log("Nested search", "learning curve", name)
     frame = table(pd.DataFrame(rows), "d2_3_learning_folds.csv")
     summary = table(frame.groupby(["model", "fraction"], sort=False).agg(
         training_rows=("training_rows", "mean"), train_ap=("train_ap", "mean"), validation_ap=("validation_ap", "mean"),

@@ -47,7 +47,7 @@ def repeated_uncertainty():
             rows.append({"configuration": label, "fold": index + 1, "repeat": index // 5 + 1,
                          "pr_auc": scores["test_pr_auc"][index], "f1": scores["test_f1"][index],
                          "fit_seconds": scores["fit_time"][index]})
-        log("D2-2", "repeated CV", f"{label}: AP {scores['test_pr_auc'].mean():.3f}")
+        log("Repeated CV", "repeated CV", f"{label}: AP {scores['test_pr_auc'].mean():.3f}")
         table(pd.DataFrame(rows), "d2_2_repeated_folds.csv")
     folds_frame = pd.DataFrame(rows)
     save_json({"seeds": REPEAT_SEEDS, "folds": 5, "fits_per_configuration": len(splits), "train_rows": len(X),

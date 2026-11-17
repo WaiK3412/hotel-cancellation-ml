@@ -106,7 +106,7 @@ def selected_options():
 
 
 # ---------------------------------------------------------------------------------------------
-# D14 extension (run after the final evaluation, training CV only).
+# Extra features extension (run after the final evaluation, training CV only).
 # ---------------------------------------------------------------------------------------------
 MONTHS = {name: number for number, name in enumerate(
     ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
@@ -143,12 +143,12 @@ class CalendarFeatures(TransformerMixin, BaseEstimator):
 
 
 def low_cardinality_text(X):
-    """Text columns other than agent and company (those get target encoding in the D14 variant)."""
+    """Text columns other than agent and company (those get target encoding in the extra-features variant)."""
     return [column for column in X.select_dtypes(exclude=np.number).columns if column not in HIGH_CARDINALITY]
 
 
 def extended_pipeline(model, calendar=False, target_encode=False):
-    """The chosen reference pipeline plus the two D14 options.
+    """The chosen reference pipeline plus the two extra-features options.
 
     With both options off it is the reference pipeline, apart from dropping the arrival year that
     CalendarFeatures needs as input, so its CV score must match the main results.
@@ -172,7 +172,7 @@ def extended_pipeline(model, calendar=False, target_encode=False):
 
 
 # ---------------------------------------------------------------------------------------------
-# D15 (13 November 2026): treating long tails and extreme values, on the training folds only.
+# Long tails (13 November 2026): treating long tails and extreme values, on the training folds only.
 # ---------------------------------------------------------------------------------------------
 class ExtremeValues(TransformerMixin, BaseEstimator):
     """Optionally cap numeric fields at the training fold's 1st and 99th percentiles and/or log them.
@@ -220,11 +220,11 @@ def extreme_value_pipeline(model, cap=False, log=False):
 
 
 def extreme_value_check():
-    """D15: do capping or log transforms help? Repeated 2 x 5 group-aware CV, training rows only.
+    """Long tails: do capping or log transforms help? Repeated 2 x 5 group-aware CV, training rows only.
 
     Uses the same ten splits as the repeated comparison of Table 7 (notebook 06), with corrected
     paired intervals and a Holm adjustment over the six comparisons. Run after the final evaluation,
-    so, as for D14, the recommended model is not changed whatever the result.
+    so, as for the extra features, the recommended model is not changed whatever the result.
     """
     from sklearn.model_selection import cross_validate
 
@@ -240,7 +240,7 @@ def extreme_value_check():
                                     scoring="average_precision", n_jobs=N_JOBS, error_score="raise")
             rows += [{"model": model_name, "configuration": label, "fold": index + 1, "pr_auc": value}
                      for index, value in enumerate(scores["test_score"])]
-            log("D15", "extreme values", f"{model_name}, {label}: CV AP {scores['test_score'].mean():.4f}")
+            log("Long tails", "extreme values", f"{model_name}, {label}: CV AP {scores['test_score'].mean():.4f}")
     folds_frame = table(pd.DataFrame(rows), "d2_12_extreme_values_folds.csv")
     summary = table(folds_frame.groupby(["model", "configuration"], sort=False).pr_auc.agg(["mean", "std"])
                     .reset_index(), "d2_12_extreme_values_summary.csv")

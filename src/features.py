@@ -210,7 +210,7 @@ def feature_audit():
     for label, excluded in variants.items():
         X, y = load_partition("train", excluded=excluded)
         fold_tables.append(fold_frame(cv_scores(model, X, y), label))
-        log("D2-1", "sensitivity", f"tuned HGB, {label}: AP {fold_tables[-1].pr_auc.mean():.3f}")
+        log("Feature audit", "sensitivity", f"tuned HGB, {label}: AP {fold_tables[-1].pr_auc.mean():.3f}")
     folds_frame = table(pd.concat(fold_tables, ignore_index=True), "d2_1_availability_folds.csv")
     summary = table(pd.DataFrame([{"configuration": label, **corrected_interval(group.pr_auc)}
                                   for label, group in folds_frame.groupby("configuration", sort=False)]),

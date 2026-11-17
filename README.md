@@ -1,8 +1,6 @@
 # Hotel booking cancellation prediction
 
-A machine learning consultancy project (6006CEM group coursework). We rank hotel bookings by their risk of cancellation using only information known at booking time. We compare supervised and unsupervised learning, test every preparation step, tune three model families and combine the best two. The recommended model is **soft voting of Random Forest, Hist Gradient Boosting**: test AP **0.698** against a baseline of 0.271.
-
-Group: [GROUP TO FILL: member names and student IDs]
+A machine learning consultancy project (6006CEM group coursework). We rank hotel bookings by their risk of cancellation using only information known at booking time. We compare supervised and unsupervised learning, test every preparation step, tune three model families and combine the best two. The recommended model is **soft voting of the tuned random forest and histogram gradient boosting**: test AP **0.698** against a baseline of 0.271.
 
 ## What is here
 
@@ -14,15 +12,15 @@ Antonio, de Almeida and Nunes (2019), *Hotel booking demand datasets*, *Data in 
 
 - **Size:** 119,390 bookings and 31 fields plus the target. After removing 31,994 exact duplicates, 87,396 remain.
 - **Split:** group-aware 80/20 into 69,877 training and 17,519 test bookings (seed 42). Bookings identical on every booking-time field always stay on the same side.
-- **Excluded as leakage:** country, required_car_parking_spaces, deposit_type, arrival_date_year. Their values are recorded at or after check-in; see Section 4.1 of the report.
+- **Excluded by the written rule:** country, required_car_parking_spaces, deposit_type, arrival_date_year. Country and deposit type can be recorded at or after the outcome, no booking with a parking space was cancelled, and a calendar year cannot recur; see Section 4.1 of the report.
 
 ## Repository map
 
 | Path | Contents |
 |---|---|
-| `notebooks/` | Executed Jupyter notebooks: 00–04 are the core Parts A–H; 05–10 are robustness extensions |
-| `src/` | Source code the notebooks call: data, features, eda, preprocess, models, evaluate, robustness, nested, clustering, decision, interpret |
-| `scripts/` | Dataset screening behind Appendix E of the report |
+| `notebooks/` | Executed Jupyter notebooks: 00–04 cover the core of Parts A–H; 05–10 add further checks, including the clustering comparison for Part B (08) and tables the report uses (09, 10) |
+| `src/` | Source code the notebooks call: common, data, metrics, inference, diagnostics, selection, eda, features, preprocess, models, evaluate, robustness, nested, clustering, decision, interpret |
+| `scripts/` | Dataset screening behind Appendix C of the report |
 | `data/processed/` | Cleaned dataset (`cleaned.csv`), the 80/20 split indices and the split manifest |
 | `results/`, `reports/figures/`, `models/` | Empty; the notebooks write their tables, charts and the final model here when run |
 
@@ -37,7 +35,7 @@ python -m venv .venv
 .venv\Scripts\jupyter lab
 ~~~
 
-On Linux or macOS use `python3` and `.venv/bin/` instead of `.venv\Scripts\`. Then run the notebooks in order, 00 to 10, with the `ml-project` kernel: each one saves what the next ones need into `results/`. Notebook 00 downloads the raw data, so it needs internet access. A full run takes about five hours on a laptop; notebooks 03, 04 and 06 take about an hour each.
+On Linux or macOS use `python3` and `.venv/bin/` instead of `.venv\Scripts\`. Then run the notebooks in order, 00 to 10, with the `ml-project` kernel: each one saves what the next ones need into `results/`. Notebook 00 downloads the raw data, so it needs internet access. A full run takes about seven to eight hours on a laptop; notebooks 03, 07, 09 and 10 take one to two hours each.
 
 ## Results (test set)
 
@@ -54,5 +52,5 @@ On Linux or macOS use `python3` and `.venv/bin/` instead of `.venv\Scripts\`. Th
 AP is average precision; the other columns use a 0.5 cutoff.
 
 - **Tuning:** on the test set, tuning added +0.017 AP for the random forest and +0.013 for gradient boosting, and nothing for logistic regression.
-- **Over time:** on bookings made after the training period, AP falls to 0.548.
-- **Lead time:** the model catches most cancellations of bookings made months ahead, but only 0.086 of those made within a week of arrival.
+- **Over time:** trained on arrivals before 2017 and tested on later bookings within the training rows, AP falls to 0.548.
+- **Lead time:** the model catches most cancellations of bookings made months ahead, but only 8.6% of those made within a week of arrival.

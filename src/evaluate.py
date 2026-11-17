@@ -447,7 +447,7 @@ def alternative_pairs():
                      "pr_auc_std": summary["pr_auc_std"], "train_pr_auc_mean": summary["train_pr_auc_mean"],
                      "fit_seconds": summary["fit_seconds"]})
         fold_tables.append(fold_frame(scores, label))
-        log("D2-7", "alternative pair", f"Voting of {label}: CV AP {summary['pr_auc_mean']:.3f}")
+        log("Alternative pairs", "alternative pair", f"Voting of {label}: CV AP {summary['pr_auc_mean']:.3f}")
     summary = table(pd.DataFrame(rows), "d2_7_pair_cv.csv")
     fold_results = table(pd.concat(fold_tables, ignore_index=True), "d2_7_pair_cv_folds.csv")
     reference = summary.loc[summary.selected_pair, "pair"].iloc[0]
@@ -456,10 +456,10 @@ def alternative_pairs():
 
 
 def booking_time_features():
-    """D14: calendar features and target encoding for agent/company, on the training folds only.
+    """Extra features: calendar features and target encoding for agent/company, on the training folds only.
 
-    Run after the final evaluation, in answer to a reviewer's point that only four engineered fields
-    were tried. The test set is not loaded, and the recommended model is not changed: choosing new
+    Run after the final evaluation, because only four engineered fields had been tried. The test
+    set is not loaded, and the recommended model is not changed: choosing new
     features now, after the test set has been used, would make the test score optimistic.
     """
     from src.preprocess import extended_pipeline
@@ -483,7 +483,7 @@ def booking_time_features():
                          "pr_auc_std": summary["pr_auc_std"], "roc_auc_mean": summary["roc_auc_mean"],
                          "fit_seconds": summary["fit_seconds"]})
             fold_tables.append(fold_frame(scores, label))
-            log("D2-8", "booking-time features", f"{name}, {label}: CV AP {summary['pr_auc_mean']:.4f}")
+            log("Extra features", "booking-time features", f"{name}, {label}: CV AP {summary['pr_auc_mean']:.4f}")
         folds_frame = pd.concat(fold_tables, ignore_index=True).assign(model=name)
         comparisons.append(paired_comparisons(folds_frame, "reference").assign(model=name))
         table(folds_frame, f"d2_8_booking_time_folds_{name.split()[0].lower()}.csv")

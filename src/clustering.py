@@ -80,7 +80,7 @@ def mixed_clustering():
                              "median_lead_time": group.lead_time.median(), "median_adr": group.adr.median(),
                              "modal_hotel": group.hotel.mode().iloc[0],
                              "modal_market_segment": group.market_segment.mode().iloc[0]})
-        log("D2-4", "k selected", f"{kind}: k = {best_k} (silhouette, no labels)")
+        log("Clustering", "k selected", f"{kind}: k = {best_k} (silhouette, no labels)")
     trial_frame = table(pd.DataFrame(trials), "d2_4_k_selection.csv")
     table(pd.DataFrame(profiles), "d2_4_cluster_profiles.csv")
 
@@ -119,7 +119,7 @@ def mixed_clustering():
 
 
 # ---------------------------------------------------------------------------------------------
-# D15 (13 November 2026): two clustering methods built for mixed data, on the same pool, anchors
+# Mixed-data clustering (13 November 2026): two clustering methods built for mixed data, on the same pool, anchors
 # and subsamples as mixed_clustering(), so the four methods can be compared resample by resample.
 # Labels are used only afterwards, to measure agreement, exactly as above.
 # ---------------------------------------------------------------------------------------------
@@ -227,7 +227,7 @@ def k_medoids(distances, k, random_state=SEED, n_init=5, max_iter=100):
 
 
 def mixed_data_clustering():
-    """D15: k-prototypes and Gower k-medoids, compared with the two K-means versions above."""
+    """Mixed-data clustering: k-prototypes and Gower k-medoids, compared with the two K-means versions above."""
     X, y = load_partition("train")
     numeric = [column for column in NUMERIC if column in X]
     categorical = [column for column in CATEGORICAL if column in X]
@@ -262,7 +262,7 @@ def mixed_data_clustering():
     best_k = {method: int(group.loc[group.silhouette_gower.idxmax(), "k"]) for method, group in trial_frame.groupby("method")}
     chosen = {method: references[method][k] for method, k in best_k.items()}
     for method, k in best_k.items():
-        log("D15", "k selected", f"{method}: k = {k} (silhouette on Gower distance, no labels)")
+        log("Mixed-data clustering", "k selected", f"{method}: k = {k} (silhouette on Gower distance, no labels)")
 
     def assign(method, model, numbers, categories, distances_to_pool, subset=None):
         if method == "k-prototypes":
