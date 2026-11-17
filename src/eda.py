@@ -18,7 +18,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from src.common import ROOT, SEED, figure, log, save_figure, table
-from src.data import CATEGORICAL, OUTCOME_FIELDS, TARGET, booking_groups, load_partition, missing_mask
+from src.data import CATEGORICAL, OUTCOME_FIELDS, TARGET, booking_groups, load_partition
 
 MEANINGS = {
     "hotel": "City hotel or resort hotel",

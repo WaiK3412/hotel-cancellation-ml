@@ -18,7 +18,7 @@ from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassif
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import RandomizedSearchCV, validation_curve
 
-from src.common import MODEL_COLOURS, ROOT, SEED, figure, load_json, log, save_figure, save_json, table
+from src.common import MODEL_COLOURS, SEED, load_json, log, save_figure, save_json, table
 from src.data import load_partition
 from src.inference import corrected_interval
 from src.metrics import N_JOBS, SCORING, cv_scores, fold_frame, folds, summarize

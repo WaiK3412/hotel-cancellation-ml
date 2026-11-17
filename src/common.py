@@ -6,7 +6,6 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 SEED = 42
@@ -89,8 +88,3 @@ def save_figure(fig, name, title=None):
     fig.tight_layout()
     fig.savefig(ROOT / "reports/figures" / name, bbox_inches="tight")
     plt.close(fig)
-
-
-def markdown_table(frame, digits=3):
-    """Markdown table for notebook display, rounded to the report's precision."""
-    return frame.to_markdown(index=False, floatfmt=f".{digits}f")

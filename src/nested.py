@@ -8,7 +8,6 @@ so the default-vs-nested gap here is not inflated by selection.
 import json
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 from sklearn.base import clone
 from sklearn.metrics import average_precision_score

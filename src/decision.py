@@ -18,7 +18,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import brier_score_loss
 from sklearn.model_selection import StratifiedKFold, train_test_split
 
-from src.common import MODEL_COLOURS, ROOT, SEED, figure, load_json, log, save_json, table
+from src.common import ROOT, SEED, figure, load_json, log, save_json, table
 from src.data import load_audit_columns, load_partition
 from src.diagnostics import (cost_loss, map_probability, paired_ap_comparisons, paired_loss_comparison,
                              prediction_intervals, probability_metrics)

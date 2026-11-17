@@ -510,32 +510,6 @@ def precision_at_capacity(shares=(0.05, 0.10, 0.20)):
     return table(pd.DataFrame(rows), "d2_9_precision_at_capacity.csv")
 
 
-def base_rates():
-    """Cancellation rate and AP lift (AP divided by that rate) for each evaluation population.
-
-    AP's floor is the cancellation rate, so AP values from populations with different rates are
-    only comparable as lifts. Reads saved predictions and the training partition; nothing is refitted.
-    """
-    from src.data import load_partition
-
-    test = pd.read_csv(ROOT / "results/phase4_test_predictions.csv")
-    later = pd.read_csv(ROOT / "results/d2_5_temporal_predictions.csv")
-    later = later[later.model == "Voting (tuned)"]
-    transfer = pd.read_csv(ROOT / "results/d2_5_hotel_transfer.csv").set_index("validation_hotel")
-    X, y = load_partition("train")
-    rows = [{"population": "random test split", "rows": len(test), "cancel_rate": test.is_canceled.mean(),
-             "voting_ap": average_precision_score(test.is_canceled, test.p_voting)},
-            {"population": "later period (from 2017)", "rows": len(later), "cancel_rate": later.is_canceled.mean(),
-             "voting_ap": average_precision_score(later.is_canceled, later.probability)}]
-    for hotel in ["Resort Hotel", "City Hotel"]:
-        rate = y[X.hotel == hotel].mean()
-        rows.append({"population": f"{hotel} (trained on the other hotel)", "rows": int((X.hotel == hotel).sum()),
-                     "cancel_rate": rate, "voting_ap": transfer.loc[hotel, "pr_auc"]})
-    frame = pd.DataFrame(rows)
-    frame["lift"] = frame.voting_ap / frame.cancel_rate
-    return table(frame, "d2_10_base_rates.csv")
-
-
 def save_recommended(estimator, chosen, X, Xtest):
     """Save the recommended model with an input contract and check that reloading is exact."""
     path = ROOT / "models/recommended.joblib"
@@ -549,10 +523,9 @@ def save_recommended(estimator, chosen, X, Xtest):
                "metric_source": "results/phase4_test_metrics.csv",
                "selection_source": "results/phase4_ensemble_selection.json"}, "models/recommended_metadata.json")
     example = Xtest.iloc[:5]
-    example.to_csv(ROOT / "work/predict_example_input.csv", lineterminator="\n")
     expected = estimator.predict_proba(example)[:, 1]
     assert np.allclose(joblib.load(path).predict_proba(example)[:, 1], expected, atol=0, rtol=0)
-    table(pd.DataFrame({"source_row": example.index, "expected_probability": expected}), "phase4_predict_expected.csv")
+    table(pd.DataFrame({"source_row": example.index, "expected_probability": expected}), "phase4_reload_check.csv")
 
 
 def run_evaluation():
