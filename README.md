@@ -20,7 +20,7 @@ Antonio, de Almeida and Nunes (2019), *Hotel booking demand datasets*, *Data in 
 |---|---|
 | `notebooks/` | Executed Jupyter notebooks: 00–04 cover the core of Parts A–H; 05–10 add further checks, including the clustering comparison for Part B (08) and tables the report uses (09, 10) |
 | `src/` | Source code the notebooks call: common, data, metrics, inference, diagnostics, selection, eda, features, preprocess, models, evaluate, robustness, nested, clustering, decision, interpret |
-| `scripts/` | Dataset screening behind Appendix C of the report |
+| `scripts/` | Dataset screening behind Appendix B of the report |
 | `data/processed/` | Cleaned dataset (`cleaned.csv`), the 80/20 split indices and the split manifest |
 | `results/`, `reports/figures/`, `models/` | Empty; the notebooks write their tables, charts and the final model here when run |
 
@@ -54,3 +54,12 @@ AP is average precision; the other columns use a 0.5 cutoff.
 - **Tuning:** on the test set, tuning added +0.017 AP for the random forest and +0.013 for gradient boosting, and nothing for logistic regression.
 - **Over time:** trained on arrivals before 2017 and tested on later bookings within the training rows, AP falls to 0.548.
 - **Lead time:** the model catches most cancellations of bookings made months ahead, but only 8.6% of those made within a week of arrival.
+
+## Contributions
+
+This table covers the code and notebooks and follows the commit history. It lists who created each file. Notebook 00 was shared, and some files were later edited by the other member.
+
+| Member | Notebooks | Source code and other files |
+|---|---|---|
+| Thong Wai Kit (WaiK3412) | 00 data selection and split (shared); 01 data exploration; 03 model tuning; 06 robustness checks; 07 nested search; 10 model explanation | The `src/` modules behind these notebooks; the screening script and project setup |
+| Bryan Tey Kai Yuan (gokuthong) | 00 data selection and split (shared); 02 preprocessing; 04 ensembles and testing; 05 leakage audit; 08 clustering; 09 cutoff and calibration | The `src/` modules behind these notebooks; the shared statistics and the README |
